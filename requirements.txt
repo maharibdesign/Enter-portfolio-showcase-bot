@@ -1,0 +1,5 @@
+python-telegram-bot==20.8  # Or the latest stable 20.x version
+supabase-py==2.3.0         # Or the latest stable 2.x version
+uvicorn==0.30.1            # For local testing & Vercel serverless function glue
+fastapi==0.111.0           # A fast web framework for Vercel webhooks
+python-dotenv==1.0.1       # For loading .env locally
