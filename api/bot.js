@@ -38,14 +38,16 @@ bot.start(async (ctx) => {
     const firstName = ctx.from.first_name || 'there'; // Fallback for firstName
 
     try {
+        console.log(`[START COMMAND] User ${telegramId} (${username || 'N/A'}) initiated /start.`); // Debug log
         const registered = await isUserRegistered(telegramId);
 
         if (registered === null) {
-            // Supabase error occurred
+            console.error('[START COMMAND] Supabase error during isUserRegistered.'); // Debug log
             return ctx.reply("Something went wrong, please try again later.");
         }
 
         if (registered) {
+            console.log(`[START COMMAND] User ${telegramId} already registered.`); // Debug log
             ctx.reply("You’re already registered. I’ll notify you when the app is live.");
         } else {
             // User is NOT registered, prompt for confirmation
@@ -75,6 +77,7 @@ bot.start(async (ctx) => {
                 ]);
             }
 
+            console.log(`[START COMMAND] Sending registration prompt with buttons to ${telegramId}.`); // Debug log
             // Send the message with the inline keyboard
             await ctx.reply(registrationPrompt, {
                 parse_mode: 'Markdown',
@@ -82,7 +85,7 @@ bot.start(async (ctx) => {
             });
         }
     } catch (error) {
-        console.error('Error in /start command:', error);
+        console.error('[START COMMAND] Unhandled error in /start command:', error);
         ctx.reply("Something went wrong, please try again later.");
     }
 });
@@ -94,6 +97,8 @@ bot.action(/register_(yes|no):?(\d+)?/, async (ctx) => {
     const telegramIdFromCallback = ctx.match[2] ? parseInt(ctx.match[2], 10) : null;
     const currentTelegramId = ctx.from.id; // The ID of the user who clicked the button
     const firstName = ctx.from.first_name || 'there';
+
+    console.log(`[CALLBACK ACTION] User ${currentTelegramId} clicked ${action}.`); // Debug log
 
     // It's good practice to verify that the user clicking 'yes' is the same user who initiated /start
     // This prevents one user from registering another by clicking their button in a group, for example.
@@ -112,10 +117,12 @@ bot.action(/register_(yes|no):?(\d+)?/, async (ctx) => {
             // Double check registration status before trying to register
             const alreadyRegistered = await isUserRegistered(currentTelegramId);
             if (alreadyRegistered === null) {
+                console.error('[CALLBACK ACTION] Supabase error during isUserRegistered for action "yes".'); // Debug log
                 await ctx.editMessageText("Something went wrong, please try again later.");
                 return;
             }
             if (alreadyRegistered) {
+                console.log(`[CALLBACK ACTION] User ${currentTelegramId} already registered, clicked "yes".`); // Debug log
                 await ctx.editMessageText(
                     "You’re already registered. I’ll notify you when the app is live.",
                     { parse_mode: 'Markdown' }
@@ -132,12 +139,14 @@ bot.action(/register_(yes|no):?(\d+)?/, async (ctx) => {
             const registrationResult = await registerUser(userData);
 
             if (registrationResult) {
+                console.log(`[CALLBACK ACTION] User ${currentTelegramId} successfully registered.`); // Debug log
                 // Edit the original message to reflect the action
                 await ctx.editMessageText(
                     `🎉 Great! Thanks for registering, ${firstName}! I’ll notify you when the Portfolio Showcase app is ready.`,
                     { parse_mode: 'Markdown' }
                 );
             } else {
+                console.error(`[CALLBACK ACTION] Failed to register user ${currentTelegramId}.`); // Debug log
                 // This could happen if there's a race condition or actual DB error
                 await ctx.editMessageText(
                     "Something went wrong during registration, please try again later.",
@@ -145,13 +154,14 @@ bot.action(/register_(yes|no):?(\d+)?/, async (ctx) => {
                 );
             }
         } else if (action === 'no') {
+            console.log(`[CALLBACK ACTION] User ${currentTelegramId} clicked "no".`); // Debug log
             await ctx.editMessageText(
                 "No problem! You can type /start again anytime if you change your mind.",
                 { parse_mode: 'Markdown' }
             );
         }
     } catch (error) {
-        console.error('Error in registration action:', error);
+        console.error('[CALLBACK ACTION] Unhandled error in registration action:', error);
         // Fallback if editMessageText fails (e.g., message too old)
         ctx.reply("Something went wrong, please try again later.");
     }
@@ -160,6 +170,7 @@ bot.action(/register_(yes|no):?(\d+)?/, async (ctx) => {
 
 // --- /help Command ---
 bot.help(async (ctx) => {
+    console.log(`[HELP COMMAND] User ${ctx.from.id} initiated /help.`); // Debug log
     const adminId = parseInt(ADMIN_ID, 10);
     const userId = ctx.from.id;
 
@@ -180,10 +191,12 @@ bot.help(async (ctx) => {
 
 // /count command
 bot.command('count', isAdmin, async (ctx) => {
+    console.log(`[ADMIN COMMAND] Admin ${ctx.from.id} initiated /count.`); // Debug log
     try {
         const count = await getRegisteredUserCount();
 
         if (count === null) {
+            console.error('[ADMIN COMMAND] Supabase error during getRegisteredUserCount.'); // Debug log
             await ctx.reply("Something went wrong while fetching user count, please try again later.");
             await logAdminAction({
                 admin_telegram_id: ctx.from.id,
@@ -201,7 +214,7 @@ bot.command('count', isAdmin, async (ctx) => {
         });
 
     } catch (error) {
-        console.error('Error in /count command:', error);
+        console.error('[ADMIN COMMAND] Unhandled error in /count command:', error);
         ctx.reply("Something went wrong, please try again later.");
         await logAdminAction({
             admin_telegram_id: ctx.from.id,
@@ -213,10 +226,12 @@ bot.command('count', isAdmin, async (ctx) => {
 
 // /list command
 bot.command('list', isAdmin, async (ctx) => {
+    console.log(`[ADMIN COMMAND] Admin ${ctx.from.id} initiated /list.`); // Debug log
     try {
         const users = await getRegisteredUsersList();
 
         if (users === null) {
+            console.error('[ADMIN COMMAND] Supabase error during getRegisteredUsersList.'); // Debug log
             await ctx.reply("Something went wrong while fetching the user list, please try again later.");
             await logAdminAction({
                 admin_telegram_id: ctx.from.id,
@@ -227,6 +242,7 @@ bot.command('list', isAdmin, async (ctx) => {
         }
 
         if (users.length === 0) {
+            console.log('[ADMIN COMMAND] No registered users found for /list.'); // Debug log
             await ctx.reply("No users are currently registered.");
             await logAdminAction({
                 admin_telegram_id: ctx.from.id,
@@ -242,6 +258,7 @@ bot.command('list', isAdmin, async (ctx) => {
             return `- ${user.telegram_id}${usernamePart}`;
         }).join('\n');
 
+        console.log(`[ADMIN COMMAND] Returned ${users.length} users for /list.`); // Debug log
         await ctx.reply(`Registered Users:\n${userList}`, { parse_mode: 'Markdown' });
         await logAdminAction({
             admin_telegram_id: ctx.from.id,
@@ -250,7 +267,7 @@ bot.command('list', isAdmin, async (ctx) => {
         });
 
     } catch (error) {
-        console.error('Error in /list command:', error);
+        console.error('[ADMIN COMMAND] Unhandled error in /list command:', error);
         ctx.reply("Something went wrong, please try again later.");
         await logAdminAction({
             admin_telegram_id: ctx.from.id,
@@ -262,9 +279,11 @@ bot.command('list', isAdmin, async (ctx) => {
 
 // /notify <message> command
 bot.command('notify', isAdmin, async (ctx) => {
+    console.log(`[ADMIN COMMAND] Admin ${ctx.from.id} initiated /notify.`); // Debug log
     const messageText = ctx.message.text.substring('/notify '.length).trim();
 
     if (!messageText) {
+        console.warn('[ADMIN COMMAND] Notify command used without message text.'); // Debug log
         await ctx.reply("Please provide a message to send. Example: `/notify The app is now live!`", { parse_mode: 'Markdown' });
         await logAdminAction({
             admin_telegram_id: ctx.from.id,
@@ -278,6 +297,7 @@ bot.command('notify', isAdmin, async (ctx) => {
         const users = await getRegisteredUsersList();
 
         if (users === null) {
+            console.error('[ADMIN COMMAND] Supabase error during getRegisteredUsersList for /notify.'); // Debug log
             await ctx.reply("Something went wrong while fetching the user list for notification, please try again later.");
             await logAdminAction({
                 admin_telegram_id: ctx.from.id,
@@ -288,6 +308,7 @@ bot.command('notify', isAdmin, async (ctx) => {
         }
 
         if (users.length === 0) {
+            console.log('[ADMIN COMMAND] No registered users to notify.'); // Debug log
             await ctx.reply("No users are currently registered to notify.");
             await logAdminAction({
                 admin_telegram_id: ctx.from.id,
@@ -308,12 +329,13 @@ bot.command('notify', isAdmin, async (ctx) => {
                 await bot.telegram.sendMessage(user.telegram_id, messageText);
                 successfulSends++;
             } catch (sendError) {
-                console.warn(`Failed to send message to user ${user.telegram_id} (${user.username || 'N/A'}): ${sendError.message}`);
+                console.warn(`[ADMIN COMMAND] Failed to send message to user ${user.telegram_id} (${user.username || 'N/A'}): ${sendError.message}`);
                 failedSends++;
                 failedUserIds.push(user.telegram_id);
             }
         }
 
+        console.log(`[ADMIN COMMAND] Broadcast complete: Sent to ${successfulSends}, failed for ${failedSends}.`); // Debug log
         await ctx.reply(`Broadcast complete! Sent to ${successfulSends} users. Failed for ${failedSends} users.`);
         await logAdminAction({
             admin_telegram_id: ctx.from.id,
@@ -322,7 +344,7 @@ bot.command('notify', isAdmin, async (ctx) => {
         });
 
     } catch (error) {
-        console.error('Error in /notify command:', error);
+        console.error('[ADMIN COMMAND] Unhandled error in /notify command:', error);
         ctx.reply("Something went wrong during the broadcast, please try again later.");
         await logAdminAction({
             admin_telegram_id: ctx.from.id,
@@ -334,7 +356,7 @@ bot.command('notify', isAdmin, async (ctx) => {
 
 // Generic error handler for Telegraf (optional, but good practice)
 bot.catch((err, ctx) => {
-    console.error(`[Telegraf Error] for ${ctx.updateType}`, err);
+    console.error(`[Telegraf CATCH] Error for ${ctx.updateType}:`, err); // Debug log
     // You might want to send a generic error message to the user here
     // ctx.reply('Oops, something went wrong!');
 });
@@ -342,17 +364,47 @@ bot.catch((err, ctx) => {
 // Handle non-command messages (e.g., plain text replies).
 // For this bot, we mostly expect commands, so we can give a default hint.
 bot.on('message', async (ctx) => {
-    if (!ctx.message.text.startsWith('/')) { // Only reply if it's not a command
+    if (ctx.message && ctx.message.text && !ctx.message.text.startsWith('/')) { // Only reply if it's not a command
+        console.log(`[MESSAGE HANDLER] User ${ctx.from.id} sent non-command message: "${ctx.message.text}".`); // Debug log
         ctx.reply("I'm a registration bot! Please use commands like /start or /help.");
     }
 });
 
 
-// --- Vercel Serverless Function Export (CRITICAL FIX) ---
-// This is the Vercel-recommended way to integrate Telegraf as a webhook.
-// The path here MUST match the 'src' in your vercel.json routes for the bot.
-// In your case, that is "/api/bot".
-module.exports = bot.webhookCallback('/api/bot');
+// --- Vercel Serverless Function Export (REVISED) ---
+// This explicit function will ensure we always send a 200 OK response
+// and can log the actual incoming request.
+module.exports = async (req, res) => {
+    console.log(`[WEBHOOK] Received request: Method=${req.method}, URL=${req.url}`); // Debug log
+
+    try {
+        if (req.method === 'POST' && req.body) {
+            console.log('[WEBHOOK] Processing Telegram update...'); // Debug log
+            await bot.handleUpdate(req.body, res); // Pass 'res' to Telegraf for proper webhook response
+        } else {
+            // Respond to GET requests (e.g., browser access to the webhook URL)
+            console.log('[WEBHOOK] Non-POST request received. Responding with info.'); // Debug log
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'text/plain');
+            res.end('This is the Telegram Bot webhook endpoint. Please send POST requests with Telegram updates.');
+            return;
+        }
+    } catch (err) {
+        console.error('[WEBHOOK ERROR] Error handling update:', err); // Debug log
+        // Ensure an error response is sent for failed processing
+        if (!res.headersSent) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: err.message }));
+        }
+    }
+
+    // Telegraf's handleUpdate *should* automatically send the response when 'res' is passed.
+    // However, if it doesn't, or if the function finishes before Telegraf sends its response,
+    // Vercel might hang or auto-respond with a generic 200.
+    // We'll trust Telegraf to handle the response if 'res' is passed.
+    // If issues persist, we might need a fallback res.end here *if headers haven't been sent*.
+};
 
 // --- Local Development (Optional, for testing without Vercel) ---
 // This block will NOT run on Vercel because Vercel only executes the module.exports function.
