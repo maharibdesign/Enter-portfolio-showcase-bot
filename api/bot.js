@@ -29,7 +29,7 @@ const isAdmin = (ctx, next) => {
     ctx.reply('Unauthorized access. This command is for admins only.');
 };
 
-// --- /start Command (with Dummy Button Test) ---
+// --- /start Command (with Dummy Button Test, no parse_mode) ---
 bot.start(async (ctx) => {
     const telegramId = ctx.from.id;
     const firstName = ctx.from.first_name || 'there';
@@ -47,10 +47,9 @@ bot.start(async (ctx) => {
             // User is NOT registered, send the diagnostic test message
             const registrationPrompt = `Hello ${firstName}! This is a diagnostic test to solve the button issue.\n\nPlease click the single button below to register.`;
 
-            // --- DUMMY BUTTON TEST ---
-            // We are using the simplest possible inline keyboard to isolate the problem.
+            // --- DUMMY BUTTON TEST (parse_mode removed) ---
             await ctx.reply(registrationPrompt, {
-                parse_mode: 'Markdown',
+                // parse_mode: 'Markdown', <-- REMOVED THIS LINE
                 reply_markup: Markup.inlineKeyboard([
                     Markup.button.callback('Click Here to Register', 'confirm_registration')
                 ])
