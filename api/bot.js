@@ -75,6 +75,13 @@ bot.start(async (ctx) => {
                     Markup.button.url('❓ Contact Admin', `https://t.me/${ADMIN_USERNAME}`)
                 ]);
             }
+            
+            // --- START DEBUG LOGS ---
+            console.log('DEBUG: Markup object defined:', typeof Markup !== 'undefined');
+            console.log('DEBUG: ADMIN_USERNAME value:', ADMIN_USERNAME);
+            console.log('DEBUG: Generated buttons array:', JSON.stringify(buttons, null, 2));
+            // --- END DEBUG LOGS ---
+
 
             // Send the message with the inline keyboard
             await ctx.reply(registrationPrompt, {
