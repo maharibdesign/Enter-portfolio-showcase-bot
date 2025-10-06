@@ -1,6 +1,6 @@
 require('dotenv').config(); // Load environment variables from .env file (for local testing)
 
-const { Telegraf, Markup } = require('telegraf'); // Markup is correctly imported
+const { Telegraf, Markup } = require('telegraf'); // Markup MUST be imported here
 const {
     isUserRegistered,
     registerUser,
@@ -17,7 +17,8 @@ const ADMIN_USERNAME = process.env.ADMIN_USERNAME; // Optional: your Telegram us
 // Check for BOT_TOKEN
 if (!BOT_TOKEN) {
     console.error('Error: BOT_TOKEN not found in environment variables. Bot cannot start.');
-    process.exit(1); // In a serverless function, this might just terminate the current invocation.
+    // In a serverless function, this might just terminate the current invocation.
+    // For local testing, process.exit(1) is useful.
 }
 
 const bot = new Telegraf(BOT_TOKEN);
@@ -35,7 +36,7 @@ const isAdmin = (ctx, next) => {
 bot.start(async (ctx) => {
     const telegramId = ctx.from.id;
     const username = ctx.from.username;
-    const firstName = ctx.from.first_name;
+    const firstName = ctx.from.first_name || 'there'; // Fallback for firstName
 
     try {
         const registered = await isUserRegistered(telegramId);
@@ -49,7 +50,7 @@ bot.start(async (ctx) => {
             ctx.reply("You’re already registered. I’ll notify you when the app is live.");
         } else {
             // User is NOT registered, prompt for confirmation
-            let registrationPrompt = `Hello ${firstName || 'there'}! I see you're not yet registered.\n\n`;
+            let registrationPrompt = `Hello ${firstName}! I see you're not yet registered.\n\n`; // Used fallback firstName
             registrationPrompt += `I'll collect the following information to keep you updated:\n`;
             registrationPrompt += `• Your Telegram ID: \`${telegramId}\`\n`;
             if (username) {
@@ -57,7 +58,7 @@ bot.start(async (ctx) => {
             } else {
                 registrationPrompt += `• Your Username: \`Not available\` (You can set one in Telegram settings!)\n`;
             }
-            registrationPrompt += `• Your First Name: \`${firstName || 'Not provided'}\`\n\n`;
+            registrationPrompt += `• Your First Name: \`${ctx.from.first_name || 'Not provided'}\`\n\n`; // Use raw first_name here for display
             registrationPrompt += `Would you like to register for updates about the Portfolio Showcase app?`;
 
             // Define the buttons
@@ -75,9 +76,10 @@ bot.start(async (ctx) => {
                 ]);
             }
 
+            // Send the message with the inline keyboard
             await ctx.reply(registrationPrompt, {
                 parse_mode: 'Markdown',
-                reply_markup: Markup.inlineKeyboard(buttons) // Use the dynamic buttons array
+                reply_markup: Markup.inlineKeyboard(buttons)
             });
         }
     } catch (error) {
@@ -92,6 +94,7 @@ bot.action(/register_(yes|no):?(\d+)?/, async (ctx) => {
     const action = ctx.match[1]; // 'yes' or 'no'
     const telegramIdFromCallback = ctx.match[2] ? parseInt(ctx.match[2], 10) : null;
     const currentTelegramId = ctx.from.id; // The ID of the user who clicked the button
+    const firstName = ctx.from.first_name || 'there';
 
     // It's good practice to verify that the user clicking 'yes' is the same user who initiated /start
     // This prevents one user from registering another by clicking their button in a group, for example.
@@ -106,7 +109,6 @@ bot.action(/register_(yes|no):?(\d+)?/, async (ctx) => {
     try {
         if (action === 'yes') {
             const username = ctx.from.username;
-            const firstName = ctx.from.first_name;
 
             // Double check registration status before trying to register
             const alreadyRegistered = await isUserRegistered(currentTelegramId);
@@ -125,7 +127,7 @@ bot.action(/register_(yes|no):?(\d+)?/, async (ctx) => {
             const userData = {
                 telegram_id: currentTelegramId,
                 username: username,
-                first_name: firstName || 'N/A'
+                first_name: ctx.from.first_name || 'N/A' // Use raw first_name here
             };
 
             const registrationResult = await registerUser(userData);
@@ -133,7 +135,7 @@ bot.action(/register_(yes|no):?(\d+)?/, async (ctx) => {
             if (registrationResult) {
                 // Edit the original message to reflect the action
                 await ctx.editMessageText(
-                    `🎉 Great! Thanks for registering, ${firstName || 'there'}! I’ll notify you when the Portfolio Showcase app is ready.`,
+                    `🎉 Great! Thanks for registering, ${firstName}! I’ll notify you when the Portfolio Showcase app is ready.`,
                     { parse_mode: 'Markdown' }
                 );
             } else {
