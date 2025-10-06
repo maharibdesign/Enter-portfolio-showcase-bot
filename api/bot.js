@@ -1,6 +1,6 @@
 require('dotenv').config(); // Load environment variables from .env file (for local testing)
 
-const { Telegraf, Markup } = require('telegraf'); // <-- Make sure Markup is imported here!
+const { Telegraf, Markup } = require('telegraf'); // Markup is correctly imported
 const {
     isUserRegistered,
     registerUser,
@@ -12,6 +12,7 @@ const {
 // Environment variables
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const ADMIN_ID = process.env.ADMIN_ID; // Stored as string, convert to number for comparison
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME; // Optional: your Telegram username (e.g., 'yourusername') for direct contact link
 
 // Check for BOT_TOKEN
 if (!BOT_TOKEN) {
@@ -59,12 +60,24 @@ bot.start(async (ctx) => {
             registrationPrompt += `• Your First Name: \`${firstName || 'Not provided'}\`\n\n`;
             registrationPrompt += `Would you like to register for updates about the Portfolio Showcase app?`;
 
-            await ctx.reply(registrationPrompt, {
-                parse_mode: 'Markdown',
-                reply_markup: Markup.inlineKeyboard([
+            // Define the buttons
+            const buttons = [
+                [ // First row of buttons
                     Markup.button.callback('✅ Yes, register me!', `register_yes:${telegramId}`),
                     Markup.button.callback('❌ No, thanks.', 'register_no')
-                ])
+                ]
+            ];
+
+            // Add 'Contact Admin' button only if ADMIN_USERNAME is set
+            if (ADMIN_USERNAME) {
+                buttons.push([ // Second row for 'Contact Admin'
+                    Markup.button.url('❓ Contact Admin', `https://t.me/${ADMIN_USERNAME}`)
+                ]);
+            }
+
+            await ctx.reply(registrationPrompt, {
+                parse_mode: 'Markdown',
+                reply_markup: Markup.inlineKeyboard(buttons) // Use the dynamic buttons array
             });
         }
     } catch (error) {
@@ -74,6 +87,7 @@ bot.start(async (ctx) => {
 });
 
 // --- Callback Query Handler for Registration Buttons ---
+// (No longer handles 'contact_admin' as it's a URL button)
 bot.action(/register_(yes|no):?(\d+)?/, async (ctx) => {
     const action = ctx.match[1]; // 'yes' or 'no'
     const telegramIdFromCallback = ctx.match[2] ? parseInt(ctx.match[2], 10) : null;
@@ -137,7 +151,8 @@ bot.action(/register_(yes|no):?(\d+)?/, async (ctx) => {
         }
     } catch (error) {
         console.error('Error in registration action:', error);
-        await ctx.editMessageText("Something went wrong, please try again later.");
+        // Fallback if editMessageText fails (e.g., message too old)
+        ctx.reply("Something went wrong, please try again later.");
     }
 });
 
