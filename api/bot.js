@@ -1,6 +1,6 @@
 require('dotenv').config(); // Load environment variables from .env file (for local testing)
 
-const { Telegraf } = require('telegraf');
+const { Telegraf, Markup } = require('telegraf'); // <-- Make sure Markup is imported here!
 const {
     isUserRegistered,
     registerUser,
@@ -47,25 +47,100 @@ bot.start(async (ctx) => {
         if (registered) {
             ctx.reply("You’re already registered. I’ll notify you when the app is live.");
         } else {
-            const userData = {
-                telegram_id: telegramId,
-                username: username,
-                first_name: firstName || 'N/A' // Fallback for first_name if not available
-            };
-            const registrationResult = await registerUser(userData);
-
-            if (registrationResult) {
-                ctx.reply("Thanks for registering! I’ll notify you when the Portfolio Showcase app is ready.");
+            // User is NOT registered, prompt for confirmation
+            let registrationPrompt = `Hello ${firstName || 'there'}! I see you're not yet registered.\n\n`;
+            registrationPrompt += `I'll collect the following information to keep you updated:\n`;
+            registrationPrompt += `• Your Telegram ID: \`${telegramId}\`\n`;
+            if (username) {
+                registrationPrompt += `• Your Username: \`@${username}\`\n`;
             } else {
-                // This would be a registration specific error, not just "already registered"
-                ctx.reply("Something went wrong during registration, please try again later.");
+                registrationPrompt += `• Your Username: \`Not available\` (You can set one in Telegram settings!)\n`;
             }
+            registrationPrompt += `• Your First Name: \`${firstName || 'Not provided'}\`\n\n`;
+            registrationPrompt += `Would you like to register for updates about the Portfolio Showcase app?`;
+
+            await ctx.reply(registrationPrompt, {
+                parse_mode: 'Markdown',
+                reply_markup: Markup.inlineKeyboard([
+                    Markup.button.callback('✅ Yes, register me!', `register_yes:${telegramId}`),
+                    Markup.button.callback('❌ No, thanks.', 'register_no')
+                ])
+            });
         }
     } catch (error) {
         console.error('Error in /start command:', error);
         ctx.reply("Something went wrong, please try again later.");
     }
 });
+
+// --- Callback Query Handler for Registration Buttons ---
+bot.action(/register_(yes|no):?(\d+)?/, async (ctx) => {
+    const action = ctx.match[1]; // 'yes' or 'no'
+    const telegramIdFromCallback = ctx.match[2] ? parseInt(ctx.match[2], 10) : null;
+    const currentTelegramId = ctx.from.id; // The ID of the user who clicked the button
+
+    // It's good practice to verify that the user clicking 'yes' is the same user who initiated /start
+    // This prevents one user from registering another by clicking their button in a group, for example.
+    if (telegramIdFromCallback && telegramIdFromCallback !== currentTelegramId) {
+        await ctx.answerCbQuery('This registration prompt is not for you.', { show_alert: true });
+        return;
+    }
+
+    // Dismiss the loading spinner on the button
+    await ctx.answerCbQuery();
+
+    try {
+        if (action === 'yes') {
+            const username = ctx.from.username;
+            const firstName = ctx.from.first_name;
+
+            // Double check registration status before trying to register
+            const alreadyRegistered = await isUserRegistered(currentTelegramId);
+            if (alreadyRegistered === null) {
+                await ctx.editMessageText("Something went wrong, please try again later.");
+                return;
+            }
+            if (alreadyRegistered) {
+                await ctx.editMessageText(
+                    "You’re already registered. I’ll notify you when the app is live.",
+                    { parse_mode: 'Markdown' }
+                );
+                return;
+            }
+
+            const userData = {
+                telegram_id: currentTelegramId,
+                username: username,
+                first_name: firstName || 'N/A'
+            };
+
+            const registrationResult = await registerUser(userData);
+
+            if (registrationResult) {
+                // Edit the original message to reflect the action
+                await ctx.editMessageText(
+                    `🎉 Great! Thanks for registering, ${firstName || 'there'}! I’ll notify you when the Portfolio Showcase app is ready.`,
+                    { parse_mode: 'Markdown' }
+                );
+            } else {
+                // This could happen if there's a race condition or actual DB error
+                await ctx.editMessageText(
+                    "Something went wrong during registration, please try again later.",
+                    { parse_mode: 'Markdown' }
+                );
+            }
+        } else if (action === 'no') {
+            await ctx.editMessageText(
+                "No problem! You can type /start again anytime if you change your mind.",
+                { parse_mode: 'Markdown' }
+            );
+        }
+    } catch (error) {
+        console.error('Error in registration action:', error);
+        await ctx.editMessageText("Something went wrong, please try again later.");
+    }
+});
+
 
 // --- /help Command ---
 bot.help(async (ctx) => {
@@ -151,8 +226,6 @@ bot.command('list', isAdmin, async (ctx) => {
             return `- ${user.telegram_id}${usernamePart}`;
         }).join('\n');
 
-        // Note: For very long lists, Telegram might have message length limits.
-        // You might need to split the message into multiple parts for thousands of users.
         await ctx.reply(`Registered Users:\n${userList}`, { parse_mode: 'Markdown' });
         await logAdminAction({
             admin_telegram_id: ctx.from.id,
